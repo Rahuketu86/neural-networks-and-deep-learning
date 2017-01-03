@@ -1,6 +1,7 @@
 # Fork with attempt at porting the code to APL2Futhark
 
 See `src/apl/`.
+See Michael Nielsen's [Online Book Chapter "Using neural nets to recognize handwritten digits"](http://neuralnetworksanddeeplearning.com/chap1.html).
 
 # Code samples for "Neural Networks and Deep Learning"
 
