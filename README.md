@@ -1,3 +1,7 @@
+# Fork with attempt at porting the code to APL2Futhark
+
+See `src/apl/`.
+
 # Code samples for "Neural Networks and Deep Learning"
 
 This repository contains code samples for my (forthcoming) book on
