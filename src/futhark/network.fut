@@ -71,7 +71,7 @@ let rnd_perm (rng:rng) (n:i32) : (rng,[n]i32) =
 
 let rnd_permute 't [n] (rng:rng) (a:[n]t) : (rng,[n]t) =
   let (rng,is) = rnd_perm rng n
-  in (rng,map (\i -> a[i]) is)
+  in unsafe(rng,map (\i -> a[i]) is)
 
 -- let randn_old (rng:rng) (n:i32) : (rng,*[n]f64) =
 --   let a = replicate n 0f64
@@ -169,6 +169,16 @@ let backprop [i] [j] [k] (network:network3[i][j][k]) (x:[i]f64,y:[k]f64) : netwo
   let nabla3 = (nabla_b3,nabla_w3)
   in (nabla2,nabla3)
 
+let layer_sum [n] [i] [j] (a: [n](layer[i][j])) : layer[i][j] =
+  let (bs,ws) = unzip a
+  let b = map (\xs -> reduce (+) 0f64 xs) (array.transpose bs)
+  let w = map (\rs -> map (\xs -> reduce (+) 0f64 xs) rs) (rearrange (2,1,0) ws)
+  in (b,array.transpose w)
+
+let network3_sum [n] [i] [j] [k] (a: [n](network3[i][j][k])) : network3[i][j][k] =
+  let (ls2,ls3) = unzip a
+  in (layer_sum ls2, layer_sum ls3)
+
 let update_mini_batch [n] [i] [j] [k] (eta:f64)
                                       (network:network3[i][j][k])
                                       (mini_batch:[n]([i]f64,[k]f64)) : network3[i][j][k] =
@@ -176,14 +186,23 @@ let update_mini_batch [n] [i] [j] [k] (eta:f64)
   -- gradient descent using backpropagation to a single mini batch.
   -- The ``mini_batch`` is a list of tuples ``(x, y)``, and ``eta``
   -- is the learning rate.
-  let network0 = zero_network network
+  --let network0 = zero_network network
   let delta_nabla = map (\d -> backprop network d) mini_batch
-  let nabla = reduce (\ ((b2a,w2a),(b3a,w3a))
-                        ((b2b,w2b),(b3b,w3b)) -> ((map (+) b2a b2b,
-                                                   map (\x y -> map (+) x y) w2a w2b),
-                                                  (map (+) b3a b3b,
-                                                   map (\x y -> map (+) x y) w3a w3b)))
-                     network0 delta_nabla
+  -- let nabla = reduce (\ ((b2a,w2a),(b3a,w3a))
+  --                       ((b2b,w2b),(b3b,w3b)) -> ((map (+) b2a b2b,
+  --                                                  map (\x y -> map (+) x y) w2a w2b),
+  --                                                 (map (+) b3a b3b,
+  --                                                  map (\x y -> map (+) x y) w3a w3b)))
+  --                   network0 delta_nabla
+  --let (delta_nabla_2,delta_nabla_3) = unzip delta_nabla
+  --let (layer0_2,layer0_3) = network0
+  --let nabla2 = reduce (\ (b2a,w2a) (b2b,w2b) -> (map (+) b2a b2b,
+  --                                               map (\x y -> map (+) x y) w2a w2b))
+  --                     layer0_2 delta_nabla_2
+  --let nabla3 = reduce (\ (b3a,w3a) (b3b,w3b) -> (map (+) b3a b3b,
+  --                                               map (\x y -> map (+) x y) w3a w3b))
+  --                   layer0_3 delta_nabla_3
+  let nabla = network3_sum delta_nabla
   let etadivn = eta / f64(n)
   in sub_network etadivn network nabla
 
@@ -241,7 +260,7 @@ let main3 () : []f64 =
 
 let convert_digit (d:i32) : [10]f64 =
   let a = replicate 10 0.0
-  in a with [d] <- 1.0
+  in unsafe(a with [d] <- 1.0)
 
 let predict (a:[10]f64) : i32 =
   let (m,i) = reduce (\(a,i) (b,j) -> if a > b then (a,i) else (b,j)) (a[9],9) (zip (a[:8]) (iota 9))

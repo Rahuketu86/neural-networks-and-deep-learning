@@ -51,6 +51,43 @@ feedforward3 ← {
   a
 }
 
+cost_derivative ← {
+  output_activations ← ⍺
+  y ← ⍵
+  output_activations - y
+}
+
+⍝ [zero_layer (B W)] returns a layer with zero's.
+zero_layer ← {
+  B ← { x ← ⍵ ⋄ 0 }¨⍵[1]
+  W ← { x ← ⍵ ⋄ 0 }¨⍵[2]
+  B W
+}
+
+⍝ update_mini_batch ← {
+⍝   network ← ⍺            ⍝ array of biases and weights
+⍝   layer2 ← network[1]
+⍝   layer3 ← network[2]
+
+⍝   backprop3 ← {
+⍝     x ← ⍺   ⍝ vector
+⍝     y ← ⍵   ⍝ vector; different length
+⍝     nabla2 ← zero_layer layer2
+⍝     nabla3 ← zero_layer layer3
+⍝     (x-x) (y-y)
+⍝   }
+
+⍝   mini_batch_xs ← ⍵[1]   ⍝ array of xs
+⍝   mini_batch_ys ← ⍵[2]   ⍝ array of ys
+⍝   eta ← ⍵[3]             ⍝ learning rate
+
+⍝   nabla2 ← zero_layer layer2
+⍝   nabla3 ← zero_layer layer3
+⍝   nabla_zero ← zero_network network
+⍝   delta_nablas ← mini_batch_xs backprop3 mini_batch_ys
+⍝   nabla ←
+⍝ }
+
 ⍝ ⍝ ⍝ ⍝ ⍝ ⍝ ⍝ ⍝ ⍝ ⍝ ⍝ ⍝ ⍝ ⍝ ⍝ ⍝ ⍝ ⍝ ⍝ ⍝ ⍝ ⍝ ⍝ ⍝ ⍝ ⍝ ⍝ ⍝ ⍝ ⍝ ⍝ ⍝ ⍝ ⍝ ⍝ ⍝ ⍝ ⍝ ⍝ ⍝
 ⍝ Stochastic Gradient Descent
 ⍝
@@ -82,7 +119,7 @@ SGD ← {
 }
 
 test1 ← {
-  ⍵
+  x ← ⍵
   ⎕ ← sigmoid 5
   ⎕ ← sigmoid 0
   ⎕ ← sigmoid_prime 5
@@ -91,7 +128,9 @@ test1 ← {
   n ← network3 4 200 10
   a ← 3 2 3 1
   a ← n feedforward3 a
+  ⎕ ← a
   r ← +/ a
+  r
 }
 
 test2 ← {
@@ -106,6 +145,6 @@ test2 ← {
   0
 }
 
-test2 10
+test1 0
 
 ⍝ test1 0

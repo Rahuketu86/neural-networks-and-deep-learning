@@ -1,4 +1,6 @@
 PYTHON=$(shell which python)
+FUTHARK=futhark-opencl
+#FUTHARK=futhark-c
 
 .PHONY: all
 all: network.res
@@ -6,10 +8,11 @@ all: network.res
 
 network.res: mnist_all.fut.txt network.exe
 	echo 'Image digit prediction percentage:' > network.res
-	cat $< | ./network.exe >> network.res
+	cat $< | ./network.exe -d AMD  >> network.res
+#	cat $< | ./network.exe >> network.res
 
-network.exe:
-	futhark-c -o network.exe network.fut
+network.exe: network.fut
+	$(FUTHARK) -o network.exe network.fut
 
 .PHONY: prepare
 prepare: mnist_all.fut.txt
@@ -21,4 +24,7 @@ mnist_all.fut.txt: mnist_training_input.fut.txt mnist_training_results.fut.txt m
 	cat mnist_training_input.fut.txt mnist_training_results.fut.txt mnist_test_input.fut.txt mnist_test_results.fut.txt > mnist_all.fut.txt
 
 clean:
-	rm -rf *~ *.c test network *.fut.txt *.exe *.res
+	rm -rf *~ *.exe *.res
+
+clean_all:
+	rm -rf *~ *.fut.txt *.exe *.res
