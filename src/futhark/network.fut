@@ -33,26 +33,8 @@ let sigmoid_prime (x:f64) =
   let s = sigmoid x
   in s * (1.0f64 - s)
 
--- Generate a random permutation.
--- [random_perm n] generates a random permutation of ⍳n.
---random_perm ← { ⍋{?10×a}¨⍳(a←⍵) }
-
--- Initialise a network layer.
--- [prev_sz network_layer sz] returns an initialized network layer
--- (B,W) of biases and weights, where B is a vector of size sz and W is a
--- matrix of dimension prev_sz × sz.
-
-type layer [i] [j] = ([j]f64, [j][i]f64)
-type layeru [i] [j] = (*[j]f64, *[j][i]f64)
-
+-- Random numbers and random permutations
 type rng = rng_engine.rng
-
--- let rand_old (rng:rng) (n:i32) : (rng,[n]i32) =
---    let a = replicate n 0i32
---    in loop (rng,a) for i < n do
---         let (rng,x) = rng_engine.rand rng
---         in (rng,
---             a with [i] <- i32(x))
 
 let rand (rng:rng) (n:i32) : (rng,[n]i32) =
   let rngs = rng_engine.split_rng n rng
@@ -73,18 +55,16 @@ let rnd_permute 't [n] (rng:rng) (a:[n]t) : (rng,[n]t) =
   let (rng,is) = rnd_perm rng n
   in unsafe(rng,map (\i -> a[i]) is)
 
--- let randn_old (rng:rng) (n:i32) : (rng,*[n]f64) =
---   let a = replicate n 0f64
---   in loop (rng,a) for i < n do
---        let (rng,x) = ndist.rand stddist rng
---        in (rng,
---            a with [i] <- x)
-
 let randn (rng:rng) (n:i32) : (rng,*[n]f64) =
   let rngs = rng_engine.split_rng n rng
   let pairs = map (\rng -> ndist.rand stddist rng) rngs
   let (rngs',a) = unzip pairs
   in (rng_engine.join_rng rngs', a)
+
+-- Network layers
+
+type layer [i] [j] = ([j]f64, [j][i]f64)
+type layeru [i] [j] = (*[j]f64, *[j][i]f64)
 
 let network_layer (rng:rng) (prev_sz:i32) (sz:i32) : (rng,(*[sz]f64, *[sz][prev_sz]f64)) =
   let (rng,biases) = randn rng sz --replicate sz 0.0
@@ -120,13 +100,6 @@ let cost_derivative [n] (output_activations:[n]f64) (y:[n]f64) : [n]f64 =
 let random_shuffle [n] [i] [k] (rng:rng) (training_data: [n]([i]f64,[k]f64)) : (rng,[n]([i]f64,[k]f64)) =
   rnd_permute rng training_data
 
-let zero_network [i] [j] [k] (_: network3[i][j][k]) : network3u[i][j][k] =
-  let zero_layer2 = (replicate j 0f64,
-                     reshape (j,i) (replicate (j*i) 0f64))
-  let zero_layer3 = (replicate (k) 0f64,
-                     reshape (k,j) (replicate (k*j) 0f64))
-  in (zero_layer2,zero_layer3)
-
 let sub_network [i][j][k] (factor: f64) (network:network3[i][j][k]) (nabla:network3[i][j][k]) =
   let (l2,l3) = network
   let (b2,w2) = l2
@@ -144,7 +117,8 @@ let sub_network [i][j][k] (factor: f64) (network:network3[i][j][k]) (nabla:netwo
 let outer_prod [m][n] (a:[m]f64) (b:[n]f64) : *[m][n]f64 =
   map (\x -> map (\y -> x * y) b) a
 
-let backprop [i] [j] [k] (network:network3[i][j][k]) (x:[i]f64,y:[k]f64) : network3u[i][j][k] =
+let backprop [i] [j] [k] (network:network3[i][j][k])
+                         (x:[i]f64,y:[k]f64) : network3u[i][j][k] =
   -- Return a nabla (a tuple ``(nabla_b, nabla_w)``) for each (non-input)
   -- layer, which, together, represent the gradient for the cost function C_x.
   -- Feedforward
@@ -186,22 +160,7 @@ let update_mini_batch [n] [i] [j] [k] (eta:f64)
   -- gradient descent using backpropagation to a single mini batch.
   -- The ``mini_batch`` is a list of tuples ``(x, y)``, and ``eta``
   -- is the learning rate.
-  --let network0 = zero_network network
   let delta_nabla = map (\d -> backprop network d) mini_batch
-  -- let nabla = reduce (\ ((b2a,w2a),(b3a,w3a))
-  --                       ((b2b,w2b),(b3b,w3b)) -> ((map (+) b2a b2b,
-  --                                                  map (\x y -> map (+) x y) w2a w2b),
-  --                                                 (map (+) b3a b3b,
-  --                                                  map (\x y -> map (+) x y) w3a w3b)))
-  --                   network0 delta_nabla
-  --let (delta_nabla_2,delta_nabla_3) = unzip delta_nabla
-  --let (layer0_2,layer0_3) = network0
-  --let nabla2 = reduce (\ (b2a,w2a) (b2b,w2b) -> (map (+) b2a b2b,
-  --                                               map (\x y -> map (+) x y) w2a w2b))
-  --                     layer0_2 delta_nabla_2
-  --let nabla3 = reduce (\ (b3a,w3a) (b3b,w3b) -> (map (+) b3a b3b,
-  --                                               map (\x y -> map (+) x y) w3a w3b))
-  --                   layer0_3 delta_nabla_3
   let nabla = network3_sum delta_nabla
   let etadivn = eta / f64(n)
   in sub_network etadivn network nabla
@@ -263,7 +222,9 @@ let convert_digit (d:i32) : [10]f64 =
   in unsafe(a with [d] <- 1.0)
 
 let predict (a:[10]f64) : i32 =
-  let (m,i) = reduce (\(a,i) (b,j) -> if a > b then (a,i) else (b,j)) (a[9],9) (zip (a[:8]) (iota 9))
+  let (m,i) = reduce (\(a,i) (b,j) -> if a > b then (a,i) else (b,j))
+                     (a[9],9)
+                     (zip (a[:8]) (iota 9))
   in i
 
 let main4 [m] [n] (training_imgs:[m]f64, training_results:[n]i32) : []f64 =

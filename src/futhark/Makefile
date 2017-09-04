@@ -1,18 +1,27 @@
 PYTHON=$(shell which python)
-FUTHARK=futhark-opencl
-#FUTHARK=futhark-c
+FUTHARK_OPENCL=futhark-opencl
+FUTHARK_C=futhark-c
 
 .PHONY: all
 all: network.res
 	cat network.res
 
+.PHONY: opencl
+opencl: network-opencl.res
+
+network-opencl.res: mnist_all.fut.txt network-opencl.exe
+	echo 'Image digit prediction percentage:' > $@
+	time(cat $< | ./network-opencl.exe -d AMD  >> $@)
+
 network.res: mnist_all.fut.txt network.exe
-	echo 'Image digit prediction percentage:' > network.res
-	cat $< | ./network.exe -d AMD  >> network.res
-#	cat $< | ./network.exe >> network.res
+	echo 'Image digit prediction percentage:' > $@
+	time(cat $< | ./network.exe >> $@)
 
 network.exe: network.fut
-	$(FUTHARK) -o network.exe network.fut
+	$(FUTHARK_C) -o $@ $<
+
+network-opencl.exe: network.fut
+	$(FUTHARK_OPENCL) -o $@ $<
 
 .PHONY: prepare
 prepare: mnist_all.fut.txt
