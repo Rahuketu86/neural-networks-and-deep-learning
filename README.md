@@ -1,7 +1,14 @@
-# Fork with attempt at porting the code to APL2Futhark
+# Fork with attempt at porting the code to Futhark and APL2Futhark
+
+## Futhark
+
+See `src/futhark`. To run the code, execute `make` and `make opencl`.
+
+## APL2Futhark
 
 See `src/apl/`.
-See Michael Nielsen's [Online Book Chapter "Using neural nets to recognize handwritten digits"](http://neuralnetworksanddeeplearning.com/chap1.html).
+
+The code is based on Michael Nielsen's [Online Book Chapter "Using neural nets to recognize handwritten digits"](http://neuralnetworksanddeeplearning.com/chap1.html).
 
 # Code samples for "Neural Networks and Deep Learning"
 
