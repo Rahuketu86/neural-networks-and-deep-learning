@@ -254,7 +254,7 @@ module digit_predict (real: real)
     in real.from_f64 100.0 real.* from_i32(reduce (+) 0 cmps) real./ from_i32(n2)
 }
 
-module predict = digit_predict(f32) -- f32 or f64
+module predict = digit_predict(f64) -- f32 or f64
 
 let main (training_imgs:[]predict.t,
           training_results:[]i32,
