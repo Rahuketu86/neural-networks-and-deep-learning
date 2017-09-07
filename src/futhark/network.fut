@@ -26,8 +26,8 @@ module digit_predict (real: real)
 
   type t = real.t
 
-  let one = real.from_fraction 1 1
-  let zero = real.from_fraction 0 1
+  let one = real.from_i32 1
+  let zero = real.from_i32 0
 
   let dotprod [n] (xs: [n]real.t) (ys: [n]real.t): real.t =
     let zs = map (real.*) xs ys
@@ -85,7 +85,8 @@ module digit_predict (real: real)
   let network_layer (rng:rng) (prev_sz:i32) (sz:i32) : (rng,(*[sz]real.t, *[sz][prev_sz]real.t)) =
     let (rng,biases) = randn rng sz
     let (rng,weights_flat) = randn rng (sz*prev_sz)
-    let weights = reshape (sz,prev_sz) weights_flat
+    let weights_flat' = map (\w -> w real./ real.sqrt(real.from_i32 prev_sz)) weights_flat
+    let weights = reshape (sz,prev_sz) weights_flat'
     in (rng,(biases,weights))
 
   -- Initialise a network given a configuration (a vector of neuron
@@ -193,7 +194,7 @@ module digit_predict (real: real)
     -- is the learning rate.
     let delta_nabla = map (\d -> backprop network d) mini_batch
     let nabla = network3_sum delta_nabla
-    let etadivn = eta real./ real.from_fraction n 1
+    let etadivn = eta real./ real.from_i32 n
     in sub_network etadivn network nabla
 
   let sgd [i] [j] [k] [n] (rng: rng,
@@ -232,9 +233,6 @@ module digit_predict (real: real)
                        (zip (a[:8]) (iota 9))
     in i
 
-  let from_i32 (a:i32) : real.t =
-    real.from_fraction a 1
-
   let run [m] [n] [m2] [n2] (training_imgs:[m]real.t,
                              training_results:[n]i32,
                              test_imgs:[m2]real.t,
@@ -251,10 +249,10 @@ module digit_predict (real: real)
     let t_imgs = reshape (n2, 28*28) test_imgs
     let predictions = map (\img -> predict(feedforward3 n img)) t_imgs
     let cmps = map (\p r -> i32(p==r)) predictions test_results
-    in real.from_f64 100.0 real.* from_i32(reduce (+) 0 cmps) real./ from_i32(n2)
+    in real.from_f64 100.0 real.* real.from_i32(reduce (+) 0 cmps) real./ real.from_i32(n2)
 }
 
-module predict = digit_predict(f64) -- f32 or f64
+module predict = digit_predict(f32) -- f32 or f64
 
 let main (training_imgs:[]predict.t,
           training_results:[]i32,
