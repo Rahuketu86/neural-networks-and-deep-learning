@@ -3,9 +3,11 @@ APLT_ROOT?=~/gits/apltail
 APLT?=$(APLT_ROOT)/aplt
 PRELUDE?=$(APLT_ROOT)/lib/prelude.apl
 TAIL2FUT?=tail2futhark
+FUTHARK_C?=futhark-c
 
 .PHONY: all
-all: network.tl
+all: network_gen.out
+	cat $<
 
 .PHONY: interp
 interp:
@@ -16,3 +18,12 @@ interp:
 
 %_gen.fut: %.tl Makefile
 	$(TAIL2FUT) -o $@ $<
+
+%_gen.exe: %_gen.fut
+	$(FUTHARK_C) -o $@ $<
+
+%_gen.out: %_gen.exe
+	./$< > $@
+
+clean:
+	rm -rf *~ *_gen.fut *.tl *_gen.exe *_gen.tl *_gen.c
