@@ -315,6 +315,7 @@ run ← {
   eta ← 3.0
   training_inputs ← 1000 (28×28) ⍴ ⍵[1]
   training_results ← 1000 ⍴ ⍵[2]
+  ⎕ ← 'hi'
   n ← network3_new (28×28) 30 10
   n ← (n epochs mini_batch_size eta) SGD (training_inputs training_results)
   test_inputs ← 100 (28×28) ⍴ ⍵[3]
@@ -330,10 +331,10 @@ run ← {
   rate
 }
 
-training_imgs ← ReadCSVDouble 'training_imgs.txt'
-training_results ← ReadCSVInt 'training_results.txt'
-test_imgs ← ReadCSVDouble 'test_imgs.txt'
-test_results ← ReadCSVInt 'test_results.txt'
+training_imgs ← ReadCSVDouble '../futhark/mnist_training_input.fut.txt'
+training_results ← ReadCSVInt '../futhark/mnist_training_results.fut.txt'
+test_imgs ← ReadCSVDouble '../futhark/mnist_test_input.fut.txt'
+test_results ← ReadCSVInt '../futhark/mnist_test_results.fut.txt'
 
 run training_imgs training_results test_imgs test_results
 
