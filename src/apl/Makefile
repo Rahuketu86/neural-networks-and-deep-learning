@@ -23,7 +23,7 @@ interp:
 	$(FUTHARK_C) -o $@ $<
 
 %_gen.out: %_gen.exe
-	./$< > $@
+	cat ../futhark/mnist_all.fut.txt | ./$< > $@
 
 clean:
 	rm -rf *~ *_gen.fut *.tl *_gen.exe *_gen.tl *_gen.c

@@ -93,10 +93,7 @@ feedforward3 ← {
   layers ← ⍺
   layer2 ← layers[1]
   layer3 ← layers[2]
-  a ← ⍵
-  a ← layer2 layer_feedforward a
-  a ← layer3 layer_feedforward a
-  a
+  layer3 layer_feedforward (layer2 layer_feedforward ⍵)
 }
 
 cost_derivative ← {
@@ -136,12 +133,16 @@ matvecmul ← {
   +/ (M × M2)
 }
 
+from_digit ← {
+  ⍵ = ¯1 + ⍳ 10
+}
+
 ⍝ Backpropagation
 ⍝ :  network3 -> (input, output) -> ((biases2,weights2),(biases3,weights3))
 backprop3 ← {
   network ← ⍺
   x ← ⍵[1]
-  y ← ⍵[2]
+  y ← from_digit ⍵[2]
   ⍝ Feedforward
   layer2 ← network[1]
   b2 ← layer2[1]
@@ -306,18 +307,34 @@ test1 ← {
   r
 }
 
-test2 ← {
-  epochs ← ⍵
+predict ← { ¯1++/(⍳≢⍵)×⍵=⌈/⍵ }
+
+run ← {
+  epochs ← 5
   mini_batch_size ← 10
   eta ← 3.0
-  training_input ← 100 28 28 ⍴ ⍳(28 × 28)
-  training_output ← 100 10 ⍴ ¯1 + ⍳10
-  training_data ← training_input training_output
-  n ← network3_new (28 × 28) 30 10
-  n ← (n epochs mini_batch_size eta) SGD training_data
-  +/ (n[1])[1]
+  training_inputs ← 1000 (28×28) ⍴ ⍵[1]
+  training_results ← 1000 ⍴ ⍵[2]
+  n ← network3_new (28×28) 30 10
+  n ← (n epochs mini_batch_size eta) SGD (training_inputs training_results)
+  test_inputs ← 100 (28×28) ⍴ ⍵[3]
+  test_results ← 100 ⍴ ⍵[4]
+  res ← {
+   in ← test_inputs[⍵]
+   out ← n feedforward3 in
+   v ← predict out
+   expected ← test_results[⍵]
+   v = expected
+  }¨⍳≢test_inputs
+  rate ← (+/res)÷≢test_inputs
+  rate
 }
 
-test2 10
+training_imgs ← ReadCSVDouble 'training_imgs.txt'
+training_results ← ReadCSVInt 'training_results.txt'
+test_imgs ← ReadCSVDouble 'test_imgs.txt'
+test_results ← ReadCSVInt 'test_results.txt'
+
+run training_imgs training_results test_imgs test_results
 
 ⍝ test1 0
