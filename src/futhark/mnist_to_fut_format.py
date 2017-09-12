@@ -53,10 +53,10 @@ def out_flat_arr(s, a):
     f.close
 
 def out_fut_data(s,n,d):
-    inputs = np.reshape(d[0], n*28*28)
+    inputs = d[0]
     results = d[1]
-    out_flat_arr('mnist_'+s+'_input.fut.txt',inputs)
-    out_flat_arr('mnist_'+s+'_results.fut.txt',results)
+    out_flat_arr('mnist_'+s+'_input.fut.txt',np.reshape(inputs[:n], n*28*28))
+    out_flat_arr('mnist_'+s+'_results.fut.txt',results[:n])
 
 def to_fut_format():
     """Output files that can be loaded by a Futhark-generated
@@ -73,5 +73,8 @@ def to_fut_format():
     out_fut_data('training',50000,tr_d)
     out_fut_data('validation',10000,va_d)
     out_fut_data('test',10000,te_d)
+    out_fut_data('training_small',5000,tr_d)
+    out_fut_data('validation_small',1000,va_d)
+    out_fut_data('test_small',1000,te_d)
 
 to_fut_format()

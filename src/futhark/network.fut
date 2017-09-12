@@ -59,13 +59,13 @@ module digit_predict (real: real)
     let a = map i32 a
     in (rng_engine.join_rng rngs', a)
 
-    -- [rnd_perm n] returns an array of size n containing a random permutation of iota n.
-    let rnd_perm (rng:rng) (n:i32) : (rng,[n]i32) =
-      let (rng,a) = rand rng n
-      let b = map (\x i -> (x,i)) a (iota n)
-      let c = pair_radix_sort.radix_sort b
-      let is = map (\(x,i) -> i) c
-      in (rng,is)
+  -- [rnd_perm n] returns an array of size n containing a random permutation of iota n.
+  let rnd_perm (rng:rng) (n:i32) : (rng,[n]i32) =
+    let (rng,a) = rand rng n
+    let b = map (\x i -> (x,i)) a (iota n)
+    let c = pair_radix_sort.radix_sort b
+    let is = map (\(x,i) -> i) c
+    in (rng,is)
 
   let rnd_permute 't [n] (rng:rng) (a:[n]t) : (rng,[n]t) =
     let (rng,is) = rnd_perm rng n
@@ -76,6 +76,10 @@ module digit_predict (real: real)
     let pairs = map (\rng -> ndist.rand stddist rng) rngs
     let (rngs',a) = unzip pairs
     in (rng_engine.join_rng rngs', a)
+
+  let randn_bad (rng:rng) (n:i32) : (rng,*[n]real.t) =
+    (rng,
+     replicate n (real.from_f64 0.0))
 
   -- Network layers
 
@@ -104,47 +108,42 @@ module digit_predict (real: real)
     let t = matvecmul w arg
     in map (\b t -> sigmoid (t real.+ b)) b t
 
-    -- [(B W) feedforward3 a] returns the output of the network (B,W) given
-    -- the input a.
-    let feedforward3 [i] [j] [k] (layer2:layer[i][j],layer3:layer[j][k]) (a:[i]real.t) : [k]real.t =
-      let a = feedforward_layer layer2 a
-      let a = feedforward_layer layer3 a
-      in a
+  -- [(B W) feedforward3 a] returns the output of the network (B,W) given
+  -- the input a.
+  let feedforward3 [i] [j] [k] (layer2:layer[i][j],layer3:layer[j][k]) (a:[i]real.t) : [k]real.t =
+    let a = feedforward_layer layer2 a
+    let a = feedforward_layer layer3 a
+    in a
 
   let cost_derivative [n] (output_activations:[n]real.t) (y:[n]real.t) : [n]real.t =
     map (real.-) output_activations y
 
-  let random_shuffle [n] [i] [k] (rng:rng) (training_data: [n]([i]real.t,[k]real.t)) : (rng,[n]([i]real.t,[k]real.t)) =
-    rnd_permute rng training_data
-
-  let sub_network [i][j][k] (factor: real.t) (network:network3[i][j][k]) (nabla:network3[i][j][k]) =
-    let (l2,l3) = network
-    let (b2,w2) = l2
-    let (b3,w3) = l3
-    let (l2n,l3n) = nabla
-    let (b2n,w2n) = l2n
-    let (b3n,w3n) = l3n
-    let sub (b:real.t) (n:real.t) : real.t = b real.- factor real.* n
-    let b2' = map sub b2 b2n
-    let w2' = map (\x y -> map sub x y) w2 w2n
-    let b3' = map sub b3 b3n
-    let w3' = map (\x y -> map sub x y) w3 w3n
+  let sub_network [i][j][k] (nabla_factor: real.t) (weight_factor: real.t)
+                            (network:network3[i][j][k]) (nabla:network3[i][j][k]) =
+    let ((b2,w2),(b3,w3)) = network
+    let ((b2n,w2n),(b3n,w3n)) = nabla
+    let sub_bias (b:real.t) (nb:real.t) : real.t =
+      b real.- (nabla_factor real.* nb)
+    let sub_weight (w:real.t) (nw:real.t) : real.t =
+      (weight_factor real.* w) real.- (nabla_factor real.* nw)
+    let b2' = map sub_bias b2 b2n
+    let w2' = map (\x y -> map sub_weight x y) w2 w2n
+    let b3' = map sub_bias b3 b3n
+    let w3' = map (\x y -> map sub_weight x y) w3 w3n
     in ((b2',w2'),(b3',w3'))
 
   let outer_prod [m][n] (a:[m]real.t) (b:[n]real.t) : *[m][n]real.t =
     map (\x -> map (\y -> x real.* y) b) a
 
   let backprop [i] [j] [k] (network:network3[i][j][k])
-                         (x:[i]real.t,y:[k]real.t) : network3u[i][j][k] =
+                           (x:[i]real.t,y:[k]real.t) : network3u[i][j][k] =
     -- Return a nabla (a tuple ``(nabla_b, nabla_w)``) for each (non-input)
     -- layer, which, together, represent the gradient for the cost function C_x.
     -- Feedforward
-    let (layer2,layer3) = network
-    let (b2,w2) = layer2
+    let ((b2,w2),(b3,w3)) = network
     let activation1 = x
     let z2 = map (real.+) (matvecmul w2 activation1) b2
     let activation2 = map sigmoid z2
-    let (b3,w3) = layer3
     let z3 = map (real.+) (matvecmul w3 activation2) b3
     let activation3 = map sigmoid z3
     -- Backward pass
@@ -177,8 +176,8 @@ module digit_predict (real: real)
   let layer_sum_par [n] [i] [j] (a: [n](layer[i][j])) : layer[i][j] =
     -- Alternative parallel version of layer_sum
     let (bs,ws) = unzip a
-    let b = map (\xs -> reduce_comm (real.+) zero xs) (array.transpose bs)
-    let w = map (\rs -> map (\xs -> reduce_comm (real.+) zero xs) rs) (rearrange (1,2,0) ws)   -- i,j,n
+    let b = map (\xs -> reduce (real.+) zero xs) (array.transpose bs)
+    let w = map (\rs -> map (\xs -> reduce (real.+) zero xs) rs) (rearrange (1,2,0) ws)   -- i,j,n
     in (b,w)
 
   let network3_sum [n] [i] [j] [k] (a: [n](network3[i][j][k])) : network3[i][j][k] =
@@ -186,6 +185,8 @@ module digit_predict (real: real)
     in (layer_sum ls2, layer_sum ls3)
 
   let update_mini_batch [n] [i] [j] [k] (eta:real.t)
+                                        (lmbda:real.t)
+                                        (training_len: i32)
                                         (network:network3[i][j][k])
                                         (mini_batch:[n]([i]real.t,[k]real.t)) : network3[i][j][k] =
     -- Update the network's weights and biases by applying
@@ -194,15 +195,18 @@ module digit_predict (real: real)
     -- is the learning rate.
     let delta_nabla = map (\d -> backprop network d) mini_batch
     let nabla = network3_sum delta_nabla
-    let etadivn = eta real./ real.from_i32 n
-    in sub_network etadivn network nabla
+    let nabla_factor = eta real./ real.from_i32 n
+    let weight_factor = (real.from_i32 1) real.-
+                        (eta real.* (lmbda real./ real.from_i32 training_len))
+    in sub_network nabla_factor weight_factor network nabla
 
   let sgd [i] [j] [k] [n] (rng: rng,
                            network: network3[i][j][k],
                            training_data: [n]([i]real.t,[k]real.t),
                            epochs:i32,
                            mini_batch_size:i32,
-                           eta:real.t) : network3[i][j][k] =
+                           eta:real.t,
+                           lmbda: real.t) : network3[i][j][k] =
     -- Train the neural network using mini-batch stochastic
     -- gradient descent.  The ``training_data`` is a list of tuples
     -- ``(x, y)`` representing the training inputs and the desired
@@ -210,17 +214,17 @@ module digit_predict (real: real)
     -- self-explanatory.
     let batches = n / mini_batch_size
     let n = batches * mini_batch_size
-    let training_data = training_data[0:n]
-    let (_,_,network) =
-      loop (rng,training_data,network) for j < epochs do
+    let training_data = training_data[:n]
+    let (_,network) =
+      loop (rng,network) for j < epochs do
+        let (rng,training_data) = rnd_permute rng training_data
         let (a,b) = unzip training_data
         let a = reshape (batches,mini_batch_size,i) a
         let b = reshape (batches,mini_batch_size,k) b
         let network =
           loop network for x < batches do
-            update_mini_batch eta network (zip a[x] b[x])
-        let (rng,training_data) = random_shuffle rng training_data
-        in (rng,training_data,network)
+            update_mini_batch eta lmbda n network (zip a[x] b[x])
+        in (rng,network)
     in network
 
   let convert_digit (d:i32) : [10]real.t =
@@ -230,7 +234,7 @@ module digit_predict (real: real)
   let predict (a:[10]real.t) : i32 =
     let (m,i) = reduce (\(a,i) (b,j) -> if a real.> b then (a,i) else (b,j))
                        (a[9],9)
-                       (zip (a[:8]) (iota 9))
+                       (zip (a[:9]) (iota 9))
     in i
 
   let run [m] [n] [m2] [n2] (training_imgs:[m]real.t,
@@ -239,13 +243,14 @@ module digit_predict (real: real)
                              test_results:[n2]i32) : real.t =
     let rng = rng_engine.rng_from_seed [0]
     let epochs = 10
-    let mini_batch_size = 400
-    let eta = real.from_i32 5
+    let lmbda = real.from_f64 0.0
+    let mini_batch_size = 20
+    let eta = real.from_f64 0.5
     let imgs = reshape (n, 28*28) training_imgs
     let data = map (\img d -> (img,convert_digit d)) imgs training_results
     -- split rng
-    let (rng,n0) = network3 rng 784 30 10
-    let n = sgd (rng, n0, data, epochs, mini_batch_size, eta)
+    let (rng,n0) = network3 rng (28*28) 30 10
+    let n = sgd (rng, n0, data, epochs, mini_batch_size, eta, lmbda)
     let t_imgs = reshape (n2, 28*28) test_imgs
     let predictions = map (\img -> predict(feedforward3 n img)) t_imgs
     let cmps = map (\p r -> i32(p==r)) predictions test_results
