@@ -1,3 +1,4 @@
+
 ---------------------------------------
 -- Stochastic gradient descent learning
 ---------------------------------------
@@ -21,13 +22,13 @@ module digit_predict (real: real)
   module pair_radix_sort = mk_radix_sort {
     type t = (i32,i32)
     let num_bits = 32
-    let get_bit (bit: i32) (x:i32,_:i32) = i32((x >> bit) & 1)
+    let get_bit (bit: i32) (x:i32,_:i32) = (x >> bit) & 1
   }
 
   type t = real.t
 
-  let one = real.from_i32 1
-  let zero = real.from_i32 0
+  let one = real.from_fraction 1 1
+  let zero = real.floor (real.from_fraction 1 2)
 
   let dotprod [n] (xs: [n]real.t) (ys: [n]real.t): real.t =
     let zs = map (real.*) xs ys
@@ -56,7 +57,7 @@ module digit_predict (real: real)
     let rngs = rng_engine.split_rng n rng
     let pairs = map (\rng -> rng_engine.rand rng) rngs
     let (rngs',a) = unzip pairs
-    let a = map i32 a
+    let a = map (i32.u32) a
     in (rng_engine.join_rng rngs', a)
 
   -- [rnd_perm n] returns an array of size n containing a random permutation of iota n.
@@ -64,7 +65,7 @@ module digit_predict (real: real)
     let (rng,a) = rand rng n
     let b = map (\x i -> (x,i)) a (iota n)
     let c = pair_radix_sort.radix_sort b
-    let is = map (\(x,i) -> i) c
+    let is = map (\(_,i) -> i) c
     in (rng,is)
 
   let rnd_permute 't [n] (rng:rng) (a:[n]t) : (rng,[n]t) =
@@ -79,7 +80,7 @@ module digit_predict (real: real)
 
   let randn_bad (rng:rng) (n:i32) : (rng,*[n]real.t) =
     (rng,
-     replicate n (real.from_f64 0.0))
+     replicate n (zero))
 
   -- Network layers
 
@@ -89,7 +90,7 @@ module digit_predict (real: real)
   let network_layer (rng:rng) (prev_sz:i32) (sz:i32) : (rng,(*[sz]real.t, *[sz][prev_sz]real.t)) =
     let (rng,biases) = randn rng sz
     let (rng,weights_flat) = randn rng (sz*prev_sz)
-    let weights_flat' = map (\w -> w real./ real.sqrt(real.from_i32 prev_sz)) weights_flat
+    let weights_flat' = map (\w -> w real./ real.sqrt(real.from_fraction prev_sz 1)) weights_flat
     let weights = reshape (sz,prev_sz) weights_flat'
     in (rng,(biases,weights))
 
@@ -152,7 +153,7 @@ module digit_predict (real: real)
     let nabla_b3 = delta3
     let nabla_w3 = outer_prod delta3 activation2
     let sp = map sigmoid_prime z2
-    let delta2 = map (real.*) (Linalg.matvecmul (array.transpose w3) delta3) sp
+    let delta2 = map (real.*) (Linalg.matvecmul_row (array.transpose w3) delta3) sp
     let nabla_b2 = delta2
     let nabla_w2 = outer_prod delta2 activation1
     let nabla2 = (nabla_b2,nabla_w2)
@@ -195,9 +196,9 @@ module digit_predict (real: real)
     -- is the learning rate.
     let delta_nabla = map (\d -> backprop network d) mini_batch
     let nabla = network3_sum delta_nabla
-    let nabla_factor = eta real./ real.from_i32 n
-    let weight_factor = (real.from_i32 1) real.-
-                        (eta real.* (lmbda real./ real.from_i32 training_len))
+    let nabla_factor = eta real./ (real.from_fraction n 1)
+    let weight_factor = (one) real.-
+                        (eta real.* (lmbda real./ (real.from_fraction training_len 1)))
     in sub_network nabla_factor weight_factor network nabla
 
   let sgd [i] [j] [k] [n] (rng: rng,
@@ -232,7 +233,7 @@ module digit_predict (real: real)
     in unsafe(a with [d] <- one)
 
   let predict (a:[10]real.t) : i32 =
-    let (m,i) = reduce (\(a,i) (b,j) -> if a real.> b then (a,i) else (b,j))
+    let (_,i) = reduce (\(a,i) (b,j) -> if a real.> b then (a,i) else (b,j))
                        (a[9],9)
                        (zip (a[:9]) (iota 9))
     in i
@@ -243,9 +244,9 @@ module digit_predict (real: real)
                              test_results:[n2]i32) : real.t =
     let rng = rng_engine.rng_from_seed [0]
     let epochs = 10
-    let lmbda = real.from_f64 0.0
+    let lmbda = zero
     let mini_batch_size = 20
-    let eta = real.from_f64 0.5
+    let eta = real.from_fraction 1 2
     let imgs = reshape (n, 28*28) training_imgs
     let data = map (\img d -> (img,convert_digit d)) imgs training_results
     -- split rng
@@ -253,8 +254,8 @@ module digit_predict (real: real)
     let n = sgd (rng, n0, data, epochs, mini_batch_size, eta, lmbda)
     let t_imgs = reshape (n2, 28*28) test_imgs
     let predictions = map (\img -> predict(feedforward3 n img)) t_imgs
-    let cmps = map (\p r -> i32(p==r)) predictions test_results
-    in real.from_f64 100.0 real.* real.from_i32(reduce (+) 0 cmps) real./ real.from_i32(n2)
+    let cmps = map (\p r -> i32.bool(p==r)) predictions test_results
+    in (real.from_fraction 100 1) real.* (real.from_fraction(reduce (+) 0 cmps) 1) real./ (real.from_fraction n2 1)
 }
 
 module predict = digit_predict(f32) -- f32 or f64
